@@ -1,0 +1,62 @@
+# ANCHOR 可视化实验配置文件
+
+# 模型配置
+model:
+  model_class: "uni_fft_1D_forecast_ascending.Model"  # 模型类名
+  checkpoint_path: "./checkpoints/checkpoint_best.pth" # 训练好的模型权重路径（使用最佳权重）
+  configs:                                            # 模型初始化参数（与训练时一致）
+    task_name: "short_term_forecast"                  # 任务类型
+    seq_len: 96                                       # 输入序列长度
+    pred_len: 48                                      # 预测长度
+    enc_in: 7                                         # 输入通道数（ETTh1为7）
+    dropout: 0.1
+    depths: [2, 2, 4, 2]                              # 训练时使用的深度（轻量版）
+    dims: [32, 64, 128, 256]                          # 训练时使用的维度（轻量版）
+    drop_path: 0.0
+
+# 数据配置
+data:
+  dataset_name: "ETTh1"                               # 数据集名称
+  data_path: "path/to/ETTh1.csv"                     # 数据文件路径
+  scale: true                                         # 是否标准化
+  freq: "h"                                           # 数据频率
+  target: "OT"                                        # 预测目标
+  features: "M"                                       # 特征类型：M=多变量预测多变量
+
+# 实验配置
+experiment:
+  # 实验一：采样点动态补偿轨迹图
+  exp1:
+    layer_to_hook: "stages.0.0.rfa.a1.2"              # 要hook的层路径（stage1第一个block的kernel=7 DCN）
+    sample_index: 0                                   # 使用的样本索引（测试集）
+    time_range: [0, 96]                               # 时间范围
+    save_path: "./results/exp1_sampling_grid.png"
+  
+  # 实验二：多尺度频段的自适应感受野解耦图
+  exp2:
+    layers_to_hook:                                   # 三个不同kernel的DCN层
+      - "stages.0.0.rfa.a1.2"  # kernel=7
+      - "stages.0.0.rfa.a2.2"  # kernel=9
+      - "stages.0.0.rfa.a3.2"  # kernel=11
+    sample_index: 0
+    save_path: "./results/exp2_multi_scale.png"
+  
+  # 实验三：训练收敛过程中的相位"寻找"瀑布图
+  exp3:
+    layer_to_hook: "stages.0.0.rfa.a1.2"              # 要追踪的层
+    checkpoints:                                      # 不同epoch的checkpoint路径
+      epoch0: "./checkpoints/checkpoint_epoch0.pth"
+      epoch5: "./checkpoints/checkpoint_epoch5.pth"
+      epoch10: "./checkpoints/checkpoint_epoch10.pth"
+      epoch15: "./checkpoints/checkpoint_epoch15.pth"
+      epoch30: "./checkpoints/checkpoint_epoch30.pth"
+    fixed_sample_index: 0                             # 固定样本索引
+    save_path: "./results/exp3_epoch_evolution.png"
+
+# 可视化配置
+visualization:
+  figure_size: [15, 10]                               # 图像大小（宽，高）
+  dpi: 300                                            # 分辨率
+  color_map: "viridis"                                # 颜色映射
+  font_size: 12
+  save_format: "png"                                  # 保存格式：png, pdf, svg
