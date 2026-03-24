@@ -20,7 +20,7 @@ ANCHOR（Adaptive Neural Compensation for Harmonic Oscillations and Noise Reduct
 
 ```
 Anchor/
-├── Time-Series-Library/          # 基础时间序列分析库
+├── Time-Series-Library/          # 基础时间序列分析库 (Git子模块)
 ├── visualization_experiments/    # 可视化实验代码
 │   ├── experiment1_sampling_grid.py      # 采样点动态补偿轨迹实验
 │   ├── experiment2_multi_scale.py        # 多尺度感受野解耦实验
@@ -30,8 +30,12 @@ Anchor/
 │   ├── plot_utils.py                     # 绘图工具
 │   └── results/                          # 实验结果图像
 ├── ANCHOR_Representation_Visualization_Design.txt  # 技术设计文档
-└── README.md                           # 项目说明文档
+├── README.md                           # 项目说明文档
+├── .gitignore                         # Git忽略文件
+└── .gitmodules                        # Git子模块配置
 ```
+
+**注意**: Time-Series-Library 是一个 Git 子模块，指向 https://github.com/Jwy-EE/Time-Series-Library.git
 
 ## 关键技术组件
 
@@ -70,12 +74,28 @@ a3 = DCNv3_1D(kernel=11, dilation=d3) # 低频分支
 
 ## 快速开始
 
-### 环境要求
+### 1. 克隆仓库并初始化子模块
 ```bash
-pip install -r visualization_experiments/requirements.txt
+# 克隆ANCHOR仓库
+git clone https://github.com/yourusername/anchor.git
+cd anchor
+
+# 初始化并更新子模块
+git submodule init
+git submodule update
 ```
 
-### 运行可视化实验
+### 2. 环境要求
+```bash
+# 安装基础依赖
+pip install -r visualization_experiments/requirements.txt
+
+# 如果需要使用Time-Series-Library
+cd Time-Series-Library
+pip install -r requirements.txt
+```
+
+### 3. 运行可视化实验
 ```bash
 # 实验1: 采样点动态补偿
 python visualization_experiments/experiment1_sampling_grid.py
