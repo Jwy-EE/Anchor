@@ -106,7 +106,7 @@ def main():
         PROJECT_ROOT,
         "Time-Series-Library",
         "models",
-        "uni_fft_1D_forecast_ascending.py",
+        "uni_fft_1D_forecast_ascending_order.py",
     )
     ModelClass = load_model_module(model_module_path, "Model")
 
@@ -122,13 +122,58 @@ def main():
     }
 
     model = ModelClass(SimpleNamespace(**model_config)).to(device)
+    
+    # 关键修复：在训练前修补模型，确保训练和可视化使用相同的 DCN 实现
+    from model_hook import patch_model_with_hooks
+    model = patch_model_with_hooks(model)
+    print("[关键修复] 已调用 patch_model_with_hooks()，确保训练和可视化使用相同的 DCN 实现")
+    
+    # 实验配置：使用相位偏移数据并锚定 Dilation=5
+    use_phase_shift_experiment = True
+    if use_phase_shift_experiment:
+        print("[实验配置] 启用相位偏移控制变量实验 (T=5.2, Dilation=5)")
+        # 强制锚定第一阶段的 DCN 膨胀系数为 5
+        model.anchor_dilation_for_experiment(stage_idx=0, dilation_values=[5, 5, 5])
 
-    train_loader, val_loader = build_dataloaders(
-        seq_len=model_config["seq_len"],
-        pred_len=model_config["pred_len"],
-        num_samples=320,
-        batch_size=16,
-    )
+    # 根据实验配置选择数据集
+    if use_phase_shift_experiment:
+        from simulate_data import SimulatedDataset
+        # 使用相位偏移数据
+        dataset = SimulatedDataset(
+            seq_len=model_config["seq_len"],
+            pred_len=model_config["pred_len"],
+            num_samples=320,
+            num_channels=7,
+            use_phase_shift=True  # 使用 T=5.2 的数据
+        )
+        
+        train_size = int(len(dataset) * 0.8)
+        val_size = len(dataset) - train_size
+        generator = torch.Generator().manual_seed(42)
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=generator)
+
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=16,
+            shuffle=True,
+            num_workers=0,
+            drop_last=False,
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=16,
+            shuffle=False,
+            num_workers=0,
+            drop_last=False,
+        )
+        print(f"[实验配置] 使用相位偏移数据集 (T=5.2)，训练集: {train_size}，验证集: {val_size}")
+    else:
+        train_loader, val_loader = build_dataloaders(
+            seq_len=model_config["seq_len"],
+            pred_len=model_config["pred_len"],
+            num_samples=320,
+            batch_size=16,
+        )
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)

@@ -125,6 +125,9 @@ def patch_model_with_hooks(model):
     def replace_layers(module):
         for name, child in module.named_children():
             if isinstance(child, OriginalDCNv3_1D):
+                # 获取原始层的设备
+                device = next(child.parameters()).device
+                
                 # 创建新的带 Hook 的层，复制所有参数
                 new_layer = DCNv3_1DWithHook(
                     channels=child.channels,
@@ -140,11 +143,15 @@ def patch_model_with_hooks(model):
                     remove_center=False
                 )
                 
+                # 将新层移动到与原始层相同的设备
+                new_layer = new_layer.to(device)
+                
                 # 复制权重
                 new_layer.load_state_dict(child.state_dict())
                 
                 # 替换层
                 setattr(module, name, new_layer)
+                print(f"[Hook Patch] 已将层 {name} 替换为带 Hook 的版本，设备: {device}")
             else:
                 # 递归处理子模块
                 replace_layers(child)

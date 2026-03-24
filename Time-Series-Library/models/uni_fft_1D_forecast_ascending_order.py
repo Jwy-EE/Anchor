@@ -374,6 +374,31 @@ class Model(nn.Module):
                 rfa.a1[2].dilation = safe_p[0] 
                 rfa.a2[2].dilation = safe_p[1]
                 rfa.a3[2].dilation = safe_p[2]
+    
+    # 新增：用于相位补偿实验的强制锚定方法
+    def anchor_dilation_for_experiment(self, stage_idx=0, dilation_values=[5, 5, 5]):
+        """
+        强制锚定特定阶段的 DCN 膨胀系数，用于相位补偿控制变量实验
+        
+        Args:
+            stage_idx: 阶段索引 (0-3)
+            dilation_values: 三个 DCN 层的膨胀系数列表 [d1, d2, d3]
+        """
+        if stage_idx < 0 or stage_idx >= len(self.stages):
+            raise ValueError(f"stage_idx 必须在 0-{len(self.stages)-1} 范围内")
+        
+        if len(dilation_values) != 3:
+            raise ValueError("dilation_values 必须是长度为 3 的列表")
+        
+        stage = self.stages[stage_idx]
+        for block in stage:
+            if hasattr(block, 'rfa'):
+                rfa = block.rfa
+                rfa.a1[2].dilation = dilation_values[0]
+                rfa.a2[2].dilation = dilation_values[1]
+                rfa.a3[2].dilation = dilation_values[2]
+        
+        print(f"[ANCHOR Experiment] 已强制锚定 stage {stage_idx} 的 DCN 膨胀系数为 {dilation_values}")
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv1d, nn.Linear)):

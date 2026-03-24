@@ -1,0 +1,48 @@
+# ANCHOR 模型：突破“零偏移”的 FGDM 相位补偿控制变量实验手册
+
+## 1. 实验物理动机 (Physical Motivation)
+在时间序列分析中，真实世界的物理信号往往具有连续的演化相位（Continuous Phase），而基于 RFFT 提取的周期不可避免地会受到离散采样导致的“栅栏效应（Picket-fence Effect）”影响。这会导致提取的宏观物理周期（整数）与真实的微观相位（小数）之间存在量化误差。
+
+本实验旨在通过一种极端的**控制变量法（Control Experiment）**，人为放大并隔离这种“量化误差”，以此验证 ANCHOR 模型中的 FGDM（频率引导形变模块）是否真正具备**跨域相位补偿**的能力，从而打破模型在完美整数周期下陷入的“零偏移（Zero-Offset）”梯度死锁。
+
+## 2. 核心数学与物理设计 (Core Design)
+为了强制网络产生相移并激活梯度，我们设定以下数学边界条件：
+*   **真实物理周期 (Ground Truth Period)**: T_real = 5.2
+*   **模型空间锚点 (Spatial Anchor / Dilation)**: D_model = 5
+*   **物理相位差 (Phase Gap)**: Δ = T_real - D_model = 0.2
+
+**梯度苏醒的理论推导：**
+如果真实数据是 T=5，模型采样也是 D=5，初始化 Offset=0 的网格会完美落在波峰/波谷上。在波峰处，曲线的局部一阶导数为零 (∂y/∂x ≈ 0)，反向传播时的梯度推力（Gradient Thrust）为 0，模型陷入平凡解（Offset 永远为 0）。
+但当设定 T_real=5.2 而 D_model=5 时，每跨越一个周期，基础网格就会出现 0.2 的滑移。采样点被迫落在正弦曲线陡峭的斜坡上，此时 ∂y/∂x ≠ 0。通过双线性插值的反向传播链条，损失函数将产生强大的梯度动能，迫使连续偏移量 Δp_n 朝着“吃掉”这 0.2 误差的方向演进。
+
+## 3. 严谨操作步骤 (Rigorous Operation Steps)
+
+### 步骤一：构造 T=5.2 的非平稳先验数据集 (Data Injection)
+放弃原有的随机多周期混合数据。显式构造一个纯粹的单变量时间序列，其生成方程严格遵循 y(t) = sin(2πt / 5.2)。为了增加真实性，可以在振幅上施加微小的白噪声，但绝对维持相位的严格 5.2 周期。构建包含该波形的训练集和验证集。
+
+### 步骤二：锚定模型的离散膨胀系数 (Anchor Dilation)
+在模型初始化阶段，强行介入 FGDM 的感受野配置。无论 RFFT 的能量频点如何分布，强制锁定某一特定层（例如第一层卷积）的 Dilation = 5。这模拟了 RFFT 遭遇离散栅栏效应时向下取整的最恶劣情况。
+
+### 步骤三：修复训练回路与梯度流 (Fix Training Loop & Gradient Flow)
+这是实验成败的工程关键。必须在训练循环（Training Loop）的起始阶段，主动调用 `patch_model_with_hooks`。确保模型在**前向传播计算 Loss 的那一刻**，使用的就是带有双线性插值连续采样（Bilinear Interpolation Continuous Sampling）的可导 DCN 实现，彻底打通偏移量的反向传播链条。
+
+### 步骤四：训练与相变可视化观察 (Visualization & Phase Transition)
+让模型在上述极度受限的环境中训练 10-30 个 Epoch。训练结束后，提取该特定层（Dilation=5）的 DCN Offset 权重。绘制沿时间序列长度（Sequence Length）分布的 Offset 曲线。
+
+## 4. 预期的物理现象 (Hypothesis Verification)
+如果底层算子的求导链条无误且 FGDM 机制生效，我们将在可视化图表中观察到以下**相变 (Phase Transition)**：
+
+1.  **死锁打破**：Offset 曲线将彻底苏醒，偏离基准零线。
+2.  **补偿轨迹显现**：为了补偿每个周期不断累计的 0.2 相位误差，采样补偿轨迹（Sampling Compensation Trajectory）将呈现出明显的**线性递增/递减趋势（Linear Trend）**。
+3.  **非线性模态（如果存在边界约束）**：如果 Offset 受到最大偏置约束，或者信号存在周期复位，曲线可能会呈现出典型的**周期性锯齿波（Sawtooth Wave）**形态。
+
+## 5. 论文论点支撑价值 (Value to the Paper)
+本实验的成功，将直接、无可辩驳地证明你在论文摘要中所提出的核心卖点：
+> *"we propose a Frequency-Guided Deformable Module (FGDM) to adaptively compensate for microscopic phase deviations."* (我们提出了一种频率引导的形变模块，以自适应地补偿微观相位偏差。)
+
+它将从一个“黑盒玄学”变成一个具备严密数学推导和物理可解释性的“白盒机制”。
+
+---
+**实验状态**: 待执行
+**创建日期**: 2026/3/24
+**操作员**: Cline (AI Assistant)

@@ -58,8 +58,10 @@ class DCNv3_1D(nn.Module):
         self._reset_parameters()
     
     def _reset_parameters(self):  
-        nn.init.constant_(self.offset_linear.weight, 0.)
+        # („:<Ëoffset¿'BMöOûÅ’
+        nn.init.normal_(self.offset_linear.weight, mean=0.0, std=0.01)
         nn.init.constant_(self.offset_linear.bias, 0.)
+        # mask¿'BİöËà:mask8ÎöËf`
         nn.init.constant_(self.mask_linear.weight, 0.)
         nn.init.constant_(self.mask_linear.bias, 0.)
         nn.init.xavier_uniform_(self.input_proj.weight) 

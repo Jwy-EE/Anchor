@@ -55,6 +55,55 @@ def generate_complex_waveform(length=96, num_channels=7, seed=42):
     
     return data
 
+def generate_phase_shift_data(length=96, num_channels=7, seed=42):
+    """
+    生成用于相位补偿控制变量实验的数据
+    核心设计：真实物理周期 T=5.2，模型锚点周期 D=5
+    
+    Args:
+        length: 序列长度
+        num_channels: 通道数
+        seed: 随机种子
+    
+    Returns:
+        data: 形状为 (length, num_channels) 的 numpy 数组
+    """
+    np.random.seed(seed)
+    
+    # 时间轴
+    t = np.linspace(0, 10, length)
+    
+    # 生成每个通道的波形
+    data = np.zeros((length, num_channels))
+    
+    for ch in range(num_channels):
+        # 真实物理周期：5.2
+        T_real = 5.2
+        
+        # 生成主波形：严格遵循 T=5.2 的正弦波
+        main_wave = np.sin(2 * np.pi * t / T_real)
+        
+        # 添加微弱的二次谐波（保持主周期不变）
+        harmonic = 0.2 * np.sin(4 * np.pi * t / T_real + np.pi/4)
+        
+        # 添加极小的白噪声（信噪比高，确保梯度清晰）
+        noise = 0.02 * np.random.randn(length)
+        
+        # 组合：主波 + 谐波 + 噪声
+        waveform = main_wave + harmonic + noise
+        
+        # 轻微调整不同通道的振幅，但保持相同的周期
+        amplitude_scale = 0.8 + 0.4 * (ch / num_channels)
+        data[:, ch] = amplitude_scale * waveform
+    
+    # 归一化
+    data = (data - data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
+    
+    print(f"[Phase Shift Data] 生成完成，真实周期 T={T_real}，序列长度={length}")
+    print(f"[Phase Shift Data] 数据形状: {data.shape}")
+    
+    return data
+
 def create_simulated_etth1_csv(save_path="simulated_ETTh1.csv", length=10000):
     """
     创建模拟的ETTh1 CSV文件
@@ -87,7 +136,7 @@ def create_simulated_etth1_csv(save_path="simulated_ETTh1.csv", length=10000):
 class SimulatedDataset:
     """模拟数据集类，用于替代真实数据"""
     
-    def __init__(self, seq_len=96, pred_len=48, num_samples=100, num_channels=7):
+    def __init__(self, seq_len=96, pred_len=48, num_samples=100, num_channels=7, use_phase_shift=False):
         """
         初始化模拟数据集
         
@@ -96,19 +145,30 @@ class SimulatedDataset:
             pred_len: 预测长度
             num_samples: 样本数量
             num_channels: 通道数
+            use_phase_shift: 是否使用相位偏移实验数据（T=5.2）
         """
         self.seq_len = seq_len
         self.pred_len = pred_len
         self.num_samples = num_samples
         self.num_channels = num_channels
+        self.use_phase_shift = use_phase_shift
         
         # 生成所有数据
         self.total_length = (seq_len + pred_len) * num_samples
-        self.data = generate_complex_waveform(
-            length=self.total_length, 
-            num_channels=num_channels,
-            seed=42
-        )
+        
+        if use_phase_shift:
+            print(f"[SimulatedDataset] 使用相位偏移实验数据 (T=5.2)")
+            self.data = generate_phase_shift_data(
+                length=self.total_length, 
+                num_channels=num_channels,
+                seed=42
+            )
+        else:
+            self.data = generate_complex_waveform(
+                length=self.total_length, 
+                num_channels=num_channels,
+                seed=42
+            )
         
         # 标准化
         self.scaler_mean = self.data.mean(axis=0)
